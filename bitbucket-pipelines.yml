@@ -1,0 +1,14 @@
+image: node:16.18.0
+
+pipelines:
+  branches:
+    main:
+      - step:
+          name: Sync GitHub Mirror
+          image: alpine/git:latest
+          clone:
+            enabled: false
+          script:
+            - git clone -b main --single-branch --bare $BITBUCKET_GIT_SSH_ORIGIN
+            - cd copin-smart-copytrade.git
+            - git push --mirror git@github.com:copin-protocol/smart-account.git

@@ -1,0 +1,3 @@
+const TIME_UNIT = 24 * 3600;
+const PROCESSING_GAS = 400000;
+export { TIME_UNIT, PROCESSING_GAS };
