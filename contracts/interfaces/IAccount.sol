@@ -11,7 +11,9 @@ interface IAccount {
         PERP_SUBMIT_CREATE_ORDER, //5
         PERP_SUBMIT_CLOSE_ORDER, //6
         DELEGATE_DEPOSIT_MARGIN, //7
-        DELEGATE_RELEASE_FEE //8
+        DELEGATE_RELEASE_FEE, //8
+        GELATO_CREATE_TASK, //9
+        GELETO_CANCEL_TASK //10
     }
 
     enum TaskCommand {
@@ -30,8 +32,8 @@ interface IAccount {
         address configs;
         address marginAsset;
         address trustedForwarder;
-        address gelato;
         address automate;
+        address taskCreator;
     }
 
     struct Order {
@@ -42,8 +44,8 @@ interface IAccount {
     }
 
     struct Task {
-        TaskCommand command;
         bytes32 gelatoTaskId;
+        TaskCommand command;
         bytes32 market;
         int256 marginDelta;
         int256 sizeDelta;
@@ -68,6 +70,8 @@ interface IAccount {
 
     error FeeNotYetReleased();
 
+    error CannotExecuteTask(uint256 taskId, address executor);
+
     function VERSION() external view returns (bytes32);
 
     function lockedMargin() external view returns (uint256);
@@ -84,9 +88,11 @@ interface IAccount {
             OrderStatus status
         );
 
-    function executorUsdFee() external view returns (uint256);
+    function executorUsdFee(uint256 _fee) external view returns (uint256);
 
     function availableMargin() external view returns (uint256);
+
+    function getTask(uint256 _taskId) external view returns (Task memory);
 
     function setInitialOwnership(address _owner) external;
 

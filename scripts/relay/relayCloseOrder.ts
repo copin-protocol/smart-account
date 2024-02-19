@@ -7,7 +7,11 @@ import { abi as marginAssetAbi } from "../../artifacts/contracts/test/MarginAsse
 // import { formatBytes32String } from "@ethersproject/bytes";
 import { CopinNetworkConfig } from "../../utils/types/config";
 import { SMART_ACCOUNT_ADDRESS, GELATO_API_KEY } from "../../utils/constants";
-import { calculateDesiredFillPrice, placeOrder } from "../../utils/perps";
+import {
+  calculateDesiredFillPrice,
+  closeOrder,
+  placeOrder,
+} from "../../utils/perps";
 import marketAbi from "../../utils/abis/marketAbi";
 // const { formatUnits } = require("ethers/lib/utils");
 
@@ -25,21 +29,13 @@ async function main() {
   const signer: any = new ethers.Wallet(process.env.PRIVATE_KEY_3!, provider);
   const account = new Contract(SMART_ACCOUNT_ADDRESS, accountAbi, signer);
 
-  const marketETH = (network.config as CopinNetworkConfig).SNX_MARKET_ETH;
-  const marketBTC = (network.config as CopinNetworkConfig).SNX_MARKET_BTC;
-  const marketLINK = (network.config as CopinNetworkConfig).SNX_MARKET_LINK;
+  const market = (network.config as CopinNetworkConfig).SNX_MARKET_ETH;
 
-  const perpETH = new ethers.Contract(marketETH, marketAbi, wallet3);
-  const perpBTC = new ethers.Contract(marketBTC, marketAbi, wallet3);
-  const perpLINK = new ethers.Contract(marketLINK, marketAbi, wallet3);
+  const perp = new ethers.Contract(market, marketAbi, wallet3);
 
-  const { commands, inputs } = await placeOrder({
-    market: perpETH,
-    markets: [perpETH, perpBTC, perpLINK],
+  const { commands, inputs } = await closeOrder({
+    market: perp,
     account,
-    amount: ethers.utils.parseEther("50"),
-    // isLong: false,
-    // increase: false,
   });
 
   console.log(commands);

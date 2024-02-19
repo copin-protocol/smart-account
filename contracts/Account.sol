@@ -9,14 +9,16 @@ import {IAccount} from "contracts/interfaces/IAccount.sol";
 import {IFactory} from "contracts/interfaces/IFactory.sol";
 import {IConfigs} from "contracts/interfaces/IConfigs.sol";
 import {IEvents} from "contracts/interfaces/IEvents.sol";
+import {ITaskCreator} from "contracts/interfaces/ITaskCreator.sol";
 import {IERC20} from "contracts/interfaces/token/IERC20.sol";
-import {GelatoAutomate} from "contracts/utils/GelatoAutomate.sol";
+import {AutomateReady} from "contracts/utils/gelato/AutomateReady.sol";
+import {Module, ModuleData} from "contracts/utils/gelato/Types.sol";
 
 abstract contract Account is
     IAccount,
     Auth,
     ERC2771Context,
-    GelatoAutomate,
+    AutomateReady,
     ReentrancyGuard
 {
     bytes32 public constant VERSION = "0.1.0";
@@ -26,6 +28,7 @@ abstract contract Account is
     IEvents internal immutable EVENTS;
     IConfigs internal immutable CONFIGS;
     IERC20 internal immutable MARGIN_ASSET;
+    ITaskCreator internal immutable TASK_CREATOR;
 
     uint256 public lockedMargin;
     uint256 public taskId;
@@ -37,18 +40,36 @@ abstract contract Account is
     )
         Auth(address(0))
         ERC2771Context(_params.trustedForwarder)
-        GelatoAutomate(_params.gelato, _params.automate)
+        AutomateReady(_params.automate, _params.taskCreator)
     {
         FACTORY = IFactory(_params.factory);
         EVENTS = IEvents(_params.events);
         CONFIGS = IConfigs(_params.configs);
         MARGIN_ASSET = IERC20(_params.marginAsset);
+        TASK_CREATOR = ITaskCreator(_params.taskCreator);
     }
 
-    function executorUsdFee() public view virtual returns (uint256) {}
+    function executorUsdFee(
+        uint256 _fee
+    ) public view virtual returns (uint256) {}
 
     function availableMargin() public view override returns (uint256) {
         return MARGIN_ASSET.balanceOf(address(this)) - lockedMargin;
+    }
+
+    function checker(
+        uint256 _taskId
+    ) external view returns (bool canExec, bytes memory execPayload) {
+        canExec = _validTask(_taskId);
+
+        // calldata for execute func
+        execPayload = abi.encodeCall(this.executeTask, (_taskId));
+    }
+
+    function getTask(
+        uint256 _taskId
+    ) public view override returns (Task memory) {
+        return _tasks[_taskId];
     }
 
     function setInitialOwnership(address _owner) external override {
@@ -77,7 +98,6 @@ abstract contract Account is
         bytes[] calldata _inputs
     ) external payable override nonReentrant {
         uint256 numCommands = _commands.length;
-        address msgSender = _msgSender();
         if (_inputs.length != numCommands) {
             revert LengthMismatch();
         }
@@ -92,31 +112,58 @@ abstract contract Account is
             (_commands[0] == Command.DELEGATE_RELEASE_FEE ||
                 _commands[0] == Command.PERP_CANCEL_ORDER)
         ) return;
+        address msgSender = _msgSender();
         if (msgSender != owner) {
             _chargeExecutorFee(msgSender);
         }
     }
 
+    function executeTask(
+        uint256 _taskId
+    ) external nonReentrant onlyDedicatedMsgSender {
+        Task memory task = getTask(_taskId);
+        (_taskId);
+
+        if (!_perpValidTask(task)) {
+            revert CannotExecuteTask({taskId: _taskId, executor: msg.sender});
+        }
+
+        delete _tasks[_taskId];
+
+        ITaskCreator(TASK_CREATOR).cancelTask(task.gelatoTaskId);
+
+        uint256 fee = _chargeExecutorFee(address(TASK_CREATOR));
+
+        _perpExecuteTask(task);
+
+        EVENTS.emitGelatoTaskRunned({
+            taskId: _taskId,
+            gelatoTaskId: task.gelatoTaskId,
+            fillPrice: task.triggerPrice,
+            fee: fee
+        });
+    }
+
     function _dispatch(Command _command, bytes calldata _inputs) internal {
-        address msgSender = _msgSender();
         uint256 commandIndex = uint256(_command);
         if (commandIndex < 2) {
-            if (!isOwner(msgSender)) revert Unauthorized();
+            if (!isOwner(msg.sender)) revert Unauthorized();
 
             if (_command == Command.ACCOUNT_MODIFY_MARGIN) {
                 int256 amount;
                 assembly {
                     amount := calldataload(_inputs.offset)
                 }
-                _modifyAccountMargin({_amount: amount, _msgSender: msgSender});
+                _modifyAccountMargin({_amount: amount, _msgSender: msg.sender});
             } else if (_command == Command.ACCOUNT_WITHDRAW_ETH) {
                 uint256 amount;
                 assembly {
                     amount := calldataload(_inputs.offset)
                 }
-                _withdrawEth({_amount: amount, _msgSender: msgSender});
+                _withdrawEth({_amount: amount, _msgSender: msg.sender});
             }
         } else {
+            address msgSender = _msgSender();
             if (!isAuth(msgSender)) revert Unauthorized();
             if (_command == Command.PERP_CANCEL_ORDER) {
                 address market = _perpCancelOrder(_inputs);
@@ -141,8 +188,40 @@ abstract contract Account is
                     market := calldataload(_inputs.offset)
                 }
                 _delegateReleaseFee(market);
+            } else if (_command == Command.GELATO_CREATE_TASK) {
+                TaskCommand taskCommand;
+                bytes32 market;
+                int256 marginDelta;
+                int256 sizeDelta;
+                uint256 triggerPrice;
+                uint256 desiredPrice;
+                bytes32 options;
+                assembly {
+                    taskCommand := calldataload(_inputs.offset)
+                    market := calldataload(add(_inputs.offset, 0x20))
+                    marginDelta := calldataload(add(_inputs.offset, 0x40))
+                    sizeDelta := calldataload(add(_inputs.offset, 0x60))
+                    triggerPrice := calldataload(add(_inputs.offset, 0x80))
+                    desiredPrice := calldataload(add(_inputs.offset, 0xa0))
+                    options := calldataload(add(_inputs.offset, 0xc0))
+                }
+                _createGelatoTask({
+                    _command: taskCommand,
+                    _market: market,
+                    _marginDelta: marginDelta,
+                    _sizeDelta: sizeDelta,
+                    _triggerPrice: triggerPrice,
+                    _desiredPrice: desiredPrice,
+                    _options: options
+                });
+            } else if (_command == Command.GELETO_CANCEL_TASK) {
+                uint256 requestTaskId;
+                assembly {
+                    requestTaskId := calldataload(_inputs.offset)
+                }
+                _cancelGelatoTask(requestTaskId);
             }
-            if (commandIndex > 8) {
+            if (commandIndex > 10) {
                 revert InvalidCommandType(commandIndex);
             }
         }
@@ -182,26 +261,32 @@ abstract contract Account is
         EVENTS.emitDeposit({user: owner, amount: _amount});
     }
 
-    function _chargeExecutorFee(address _executor) internal {
-        uint256 _fee = executorUsdFee();
+    function _chargeExecutorFee(address _executor) internal returns (uint256) {
+        uint256 _fee;
+        if (_executor == address(TASK_CREATOR)) {
+            (_fee, ) = automate.getFeeDetails();
+        } else {
+            _fee = CONFIGS.executorFee();
+        }
+        uint256 _feeUsd = executorUsdFee(_fee);
         address _feeReceiver = CONFIGS.feeReceiver();
-        if (_fee <= availableMargin()) {
+        if (_feeUsd <= availableMargin()) {
             /// @dev failed Synthetix asset transfer will revert and not return false if unsuccessful
-            MARGIN_ASSET.transfer(_feeReceiver, _fee);
+            MARGIN_ASSET.transfer(_feeReceiver, _feeUsd);
         } else {
             /// @dev failed Synthetix asset transfer will revert and not return false if unsuccessful
-            MARGIN_ASSET.transferFrom(owner, _feeReceiver, _fee);
+            MARGIN_ASSET.transferFrom(owner, _feeReceiver, _feeUsd);
         }
-
         EVENTS.emitChargeExecutorFee({
             executor: _executor,
             receiver: _feeReceiver,
-            fee: _fee
+            fee: _fee,
+            feeUsd: _feeUsd
         });
+        return _fee;
     }
 
-    function _lockProtocolFee(uint256 _size) internal {
-        uint256 _fee = _protocolUsdFee(_size);
+    function _lockProtocolFee(uint256 _fee) internal {
         if (_fee > availableMargin()) {
             revert InsufficientAvailableMargin(availableMargin(), _fee);
         }
@@ -245,10 +330,11 @@ abstract contract Account is
     }
 
     function _postOrder(address _market, uint256 _size) internal {
-        _lockProtocolFee(_size);
+        uint256 _fee = _protocolUsdFee(_size);
+        _lockProtocolFee(_fee);
         lastOrders[_market] = Order({
             size: _size,
-            fee: _protocolUsdFee(_size),
+            fee: _fee,
             submittedTime: block.timestamp,
             status: OrderStatus.PROCESSING
         });
@@ -266,6 +352,75 @@ abstract contract Account is
 
     function _perpSubmitCloseOrder(bytes calldata _inputs) internal virtual {}
 
+    function _perpValidTask(
+        Task memory _task
+    ) internal view virtual returns (bool) {}
+
+    function _perpExecuteTask(Task memory _task) internal virtual {}
+
+    function _createGelatoTask(
+        TaskCommand _command,
+        bytes32 _market,
+        int256 _marginDelta,
+        int256 _sizeDelta,
+        uint256 _triggerPrice,
+        uint256 _desiredPrice,
+        bytes32 _options
+    ) internal {
+        if (_sizeDelta == 0) revert ZeroSizeDelta();
+        if (_marginDelta > 0) {
+            _sufficientMargin(_marginDelta);
+            lockedMargin += _abs(_marginDelta);
+        }
+
+        ModuleData memory moduleData = ModuleData({
+            modules: new Module[](1),
+            args: new bytes[](1)
+        });
+
+        moduleData.modules[0] = Module.RESOLVER;
+        moduleData.args[0] = abi.encode(
+            address(this),
+            abi.encodeCall(this.checker, taskId)
+        );
+
+        bytes32 _gelatoTaskId = ITaskCreator(TASK_CREATOR).createTask({
+            execData: abi.encodeCall(this.executeTask, taskId),
+            moduleData: moduleData,
+            feeToken: ETH
+        });
+
+        _tasks[taskId] = Task({
+            gelatoTaskId: _gelatoTaskId,
+            command: _command,
+            market: _market,
+            marginDelta: _marginDelta,
+            sizeDelta: _sizeDelta,
+            triggerPrice: _triggerPrice,
+            desiredPrice: _desiredPrice,
+            options: _options
+        });
+
+        EVENTS.emitCreateGelatoTask({
+            taskId: taskId,
+            gelatoTaskId: _gelatoTaskId,
+            command: _command,
+            market: _market,
+            marginDelta: _marginDelta,
+            sizeDelta: _sizeDelta,
+            triggerPrice: _triggerPrice,
+            desiredPrice: _desiredPrice,
+            options: _options
+        });
+
+        ++taskId;
+    }
+
+    function _cancelGelatoTask(uint256 _taskId) internal {
+        Task memory task = getTask(_taskId);
+        ITaskCreator(TASK_CREATOR).cancelTask(task.gelatoTaskId);
+    }
+
     function _initAccount() internal virtual {}
 
     function _protocolUsdFee(uint256 _size) internal view returns (uint256) {
@@ -279,6 +434,15 @@ abstract contract Account is
                 _abs(_marginOut)
             );
         }
+    }
+
+    function _validTask(uint256 _taskId) internal view returns (bool) {
+        Task memory task = getTask(_taskId);
+
+        if (task.market == bytes32(0)) {
+            return false;
+        }
+        return _perpValidTask(task);
     }
 
     // function _orderKey(

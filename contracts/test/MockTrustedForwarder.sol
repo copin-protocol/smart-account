@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.18;
 
-import {GelatoCallUtils} from "../utils/GelatoCallUtils.sol";
+import {CallUtils} from "../utils/gelato/CallUtils.sol";
 
 contract MockTrustedForwarder {
-    using GelatoCallUtils for address;
+    using CallUtils for address;
 
     function _encodeERC2771Context(
         bytes calldata _data,

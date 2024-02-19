@@ -3,6 +3,7 @@ import { Contract } from "ethers";
 import { ethers } from "hardhat";
 import { PROTOCOL_FEE } from "./constants";
 import { AccountCommand } from "./accounts";
+import { formatEther } from "@ethersproject/units";
 
 const abi = ethers.utils.defaultAbiCoder;
 
@@ -31,12 +32,14 @@ export const DEFAULT_AMOUNT = ethers.utils.parseEther("50");
 export async function placeOrder({
   account,
   market,
+  markets,
   amount = DEFAULT_AMOUNT,
   isLong = true,
   increase = true,
 }: {
   account: Contract;
   market: Contract;
+  markets: Contract[];
   amount?: BigNumber;
   isLong?: boolean;
   increase?: boolean;
@@ -44,12 +47,16 @@ export async function placeOrder({
   const leverage = ethers.BigNumber.from(2);
   const size = amount.mul(leverage);
   const sign = isLong === increase ? 1 : -1;
-  const executorFee = await account.executorUsdFee();
+  const executorFee = await account.executorUsdFee(
+    ethers.utils.parseEther("1").div(5000)
+  );
   const protocolFee = PROTOCOL_FEE;
   const amountWithFee = amount.add(size.div(protocolFee)).add(executorFee);
 
+  console.log("111");
+
   const availableMargin = await account.availableMargin();
-  const { marginAccessible } = await market.accessibleMargin(account.address);
+
   // console.log("availableMargin", ethers.utils.formatEther(availableMargin));
   // console.log("accessibleMargin", ethers.utils.formatEther(marginAccessible));
 
@@ -57,22 +64,40 @@ export async function placeOrder({
   const inputs = [];
 
   const delayedOrder = await market.delayedOrders(account.address);
-  // console.log(delayedOrder);
   // console.log(delayedOrder.sizeDelta);
   if (Number(ethers.utils.formatEther(delayedOrder.sizeDelta)) !== 0) {
     commands.push(AccountCommand.PERP_CANCEL_ORDER);
     inputs.push(abi.encode(["address"], [market.address]));
   }
 
-  if (marginAccessible.gt(0)) {
-    commands.push(AccountCommand.PERP_WITHDRAW_ALL_MARGIN);
-    inputs.push(abi.encode(["address"], [market.address]));
+  let accessibleMargins = BigNumber.from(0);
+
+  for (let i = 0; i < markets.length; i++) {
+    const m = markets[i];
+    const order = await m.delayedOrders(account.address);
+    if (
+      m.address === market.address ||
+      !order ||
+      (order.sizeDelta as BigNumber).eq(0)
+    ) {
+      const { marginAccessible } = await m.accessibleMargin(account.address);
+      console.log("m", m.address);
+      console.log("m", await m.marketKey());
+      console.log("marginAccessible", formatEther(marginAccessible));
+      if (marginAccessible.gt(0)) {
+        accessibleMargins = accessibleMargins.add(marginAccessible);
+        commands.push(AccountCommand.PERP_WITHDRAW_ALL_MARGIN);
+        inputs.push(abi.encode(["address"], [m.address]));
+      }
+    }
   }
+
+  console.log("accessibleMargins", formatEther(accessibleMargins));
 
   if (increase) {
     const requiredDeposit = amountWithFee
       .sub(availableMargin)
-      .sub(marginAccessible);
+      .sub(accessibleMargins);
 
     // console.log("requiredDeposit", ethers.utils.formatEther(requiredDeposit));
 
@@ -87,6 +112,9 @@ export async function placeOrder({
     priceInfo.price,
     Number(ethers.utils.formatEther(amount)) / sign > 0
   );
+
+  console.log("price", ethers.utils.formatEther(priceInfo.price));
+  console.log("desiredFillPrice", ethers.utils.formatEther(desiredFillPrice));
 
   const sizeDelta = size
     .mul(ethers.BigNumber.from(10).pow(18))
@@ -195,10 +223,10 @@ export async function withdrawAllFunds({
     inputs.push(abi.encode(["address"], [market.address]));
   }
 
-  const funds = availableMargin.add(marginAccessible).mul(-1);
+  // const funds = availableMargin.add(marginAccessible).mul(-1);
 
-  commands.push(AccountCommand.ACCOUNT_MODIFY_MARGIN);
-  inputs.push(abi.encode(["int256"], [funds]));
+  // commands.push(AccountCommand.ACCOUNT_MODIFY_MARGIN);
+  // inputs.push(abi.encode(["int256"], [funds]));
 
   return {
     commands,

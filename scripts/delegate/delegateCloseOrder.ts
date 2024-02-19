@@ -8,15 +8,15 @@ import { SMART_ACCOUNT_ADDRESS } from "../../utils/constants";
 // const { formatUnits } = require("ethers/lib/utils");
 
 async function main() {
-  const [wallet1] = await ethers.getSigners();
+  const [wallet1, wallet2, wallet3] = await ethers.getSigners();
   const account = new ethers.Contract(
     SMART_ACCOUNT_ADDRESS,
     accountAbi,
-    wallet1
+    wallet3
   );
-  const marketETH = (network.config as CopinNetworkConfig).SNX_MARKET_ETH;
+  const market = (network.config as CopinNetworkConfig).SNX_MARKET_ETH;
 
-  const perp = new ethers.Contract(marketETH, marketAbi, wallet1);
+  const perp = new ethers.Contract(market, marketAbi, wallet3);
 
   const { commands, inputs } = await closeOrder({
     market: perp,

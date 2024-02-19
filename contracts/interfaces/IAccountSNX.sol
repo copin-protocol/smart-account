@@ -12,8 +12,8 @@ interface IAccountSNX {
         address configs;
         address marginAsset;
         address trustedForwarder;
-        address gelato;
         address automate;
+        address taskCreator;
         address exchangeRate;
         address marketManager;
         address systemStatus;

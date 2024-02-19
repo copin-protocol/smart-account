@@ -5,15 +5,25 @@ import { CopinNetworkConfig } from "../utils/types/config";
 
 async function main() {
   const [, wallet2] = await ethers.getSigners();
-  const marketETH = (network.config as CopinNetworkConfig).SNX_MARKET_ETH;
-  const perp = new ethers.Contract(marketETH, marketAbi, wallet2);
+  const market = (network.config as CopinNetworkConfig).SNX_MARKET_ETH;
+  // const market = "0x2B3bb4c683BFc5239B029131EEf3B1d214478d93";
+  const perp = new ethers.Contract(market, marketAbi, wallet2);
+
+  const orderInfo = await perp.orderFee(
+    ethers.utils.parseEther("0.01").mul(-1),
+    2
+  );
+  console.log("orderInfo", orderInfo);
 
   const price = await perp.assetPrice();
-  console.log(ethers.utils.formatEther(price.price));
+  console.log(ethers.utils.formatEther(price.price), price);
+  const key = await perp.marketKey();
+  console.log("key", key);
   const accessibleMargin = await perp.accessibleMargin(SMART_ACCOUNT_ADDRESS);
   console.log(
     "accessibleMargin",
-    ethers.utils.formatEther(accessibleMargin.marginAccessible)
+    ethers.utils.formatEther(accessibleMargin.marginAccessible),
+    accessibleMargin.invalid
   );
   const remainingMargin = await perp.remainingMargin(SMART_ACCOUNT_ADDRESS);
   console.log(

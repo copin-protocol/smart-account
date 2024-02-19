@@ -10,34 +10,41 @@ import { depositFunds } from "../../utils/accounts";
 // const { formatUnits } = require("ethers/lib/utils");
 
 async function main() {
-  const [wallet1, wallet2] = await ethers.getSigners();
+  const [wallet1, wallet2, wallet3] = await ethers.getSigners();
   const account = new ethers.Contract(
     SMART_ACCOUNT_ADDRESS,
     accountAbi,
-    wallet1
+    wallet2
   );
   const marginAsset = (network.config as CopinNetworkConfig).MARGIN_ASSET;
   const marketETH = (network.config as CopinNetworkConfig).SNX_MARKET_ETH;
-  const margin = new ethers.Contract(marginAsset, marginAssetAbi);
+  const marketBTC = (network.config as CopinNetworkConfig).SNX_MARKET_BTC;
+  const marketLINK = (network.config as CopinNetworkConfig).SNX_MARKET_LINK;
+  const margin = new ethers.Contract(marginAsset, marginAssetAbi, wallet2);
 
-  // await depositFunds({
-  //   account,
-  //   marginAsset: margin,
-  // });
-  const perp = new ethers.Contract(marketETH, marketAbi, wallet1);
+  await depositFunds({
+    funds: ethers.utils.parseEther("56"),
+    account,
+    marginAsset: margin,
+  });
+  const perpETH = new ethers.Contract(marketETH, marketAbi, wallet3);
+  const perpBTC = new ethers.Contract(marketBTC, marketAbi, wallet3);
+  const perpLINK = new ethers.Contract(marketLINK, marketAbi, wallet3);
 
   const { commands, inputs } = await placeOrder({
-    market: perp,
+    market: perpETH,
+    markets: [perpETH, perpBTC, perpLINK],
     account,
-    amount: ethers.utils.parseEther("20"),
-    increase: false,
+    amount: ethers.utils.parseEther("50"),
+    // isLong: false,
+    // increase: false,
   });
 
   console.log(commands);
 
-  return;
+  // return;
 
-  const tx = await account.connect(wallet1 as any).execute(commands, inputs);
+  const tx = await account.connect(wallet3 as any).execute(commands, inputs);
   console.log("tx", tx);
 }
 

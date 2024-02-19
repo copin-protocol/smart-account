@@ -557,7 +557,14 @@ export default [
   },
   {
     constant: true,
-    inputs: [{ internalType: "int256", name: "sizeDelta", type: "int256" }],
+    inputs: [
+      { internalType: "int256", name: "sizeDelta", type: "int256" },
+      {
+        internalType: "enum IPerpsV2MarketBaseTypes.OrderType",
+        name: "orderType",
+        type: "uint8",
+      },
+    ],
     name: "orderFee",
     outputs: [
       { internalType: "uint256", name: "fee", type: "uint256" },

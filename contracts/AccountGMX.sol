@@ -21,7 +21,7 @@ contract AccountGMX is Account, IAccountGMX {
                 configs: _params.configs,
                 marginAsset: _params.marginAsset,
                 trustedForwarder: _params.trustedForwarder,
-                gelato: _params.gelato,
+                taskCreator: _params.taskCreator,
                 automate: _params.automate
             })
         )

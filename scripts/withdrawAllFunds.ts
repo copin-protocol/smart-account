@@ -14,8 +14,8 @@ async function main() {
     accountAbi,
     wallet2
   );
-  const marketETH = (network.config as CopinNetworkConfig).SNX_MARKET_ETH;
-  const perp = new ethers.Contract(marketETH, marketAbi, wallet2);
+  const market = (network.config as CopinNetworkConfig).SNX_MARKET_LINK;
+  const perp = new ethers.Contract(market, marketAbi, wallet2);
 
   const { commands, inputs } = await withdrawAllFunds({
     account,

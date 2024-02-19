@@ -8,8 +8,8 @@ interface IAccountGMX {
         address configs;
         address marginAsset;
         address trustedForwarder;
-        address gelato;
         address automate;
+        address taskCreator;
         address router;
         address positionRouter;
     }

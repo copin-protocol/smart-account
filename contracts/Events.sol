@@ -11,7 +11,6 @@ contract Events is IEvents {
         if (!IFactory(factory).accounts(msg.sender)) {
             revert OnlyAccounts();
         }
-
         _;
     }
 
@@ -43,13 +42,15 @@ contract Events is IEvents {
     function emitChargeExecutorFee(
         address executor,
         address receiver,
-        uint256 fee
+        uint256 fee,
+        uint256 feeUsd
     ) external override onlyAccounts {
         emit ChargeExecutorFee({
             executor: executor,
             receiver: receiver,
             account: msg.sender,
-            fee: fee
+            fee: fee,
+            feeUsd: feeUsd
         });
     }
 
@@ -63,6 +64,59 @@ contract Events is IEvents {
             account: msg.sender,
             size: size,
             fee: fee
+        });
+    }
+
+    function emitCreateGelatoTask(
+        uint256 taskId,
+        bytes32 gelatoTaskId,
+        IAccount.TaskCommand command,
+        bytes32 market,
+        int256 marginDelta,
+        int256 sizeDelta,
+        uint256 triggerPrice,
+        uint256 desiredPrice,
+        bytes32 options
+    ) external override onlyAccounts {
+        emit CreateGelatoTask({
+            account: msg.sender,
+            taskId: taskId,
+            gelatoTaskId: gelatoTaskId,
+            command: command,
+            market: market,
+            marginDelta: marginDelta,
+            sizeDelta: sizeDelta,
+            triggerPrice: triggerPrice,
+            desiredPrice: desiredPrice,
+            options: options
+        });
+    }
+
+    function emitGelatoTaskRunned(
+        uint256 taskId,
+        bytes32 gelatoTaskId,
+        uint256 fillPrice,
+        uint256 fee
+    ) external override onlyAccounts {
+        emit GelatoTaskRunned({
+            account: msg.sender,
+            taskId: taskId,
+            gelatoTaskId: gelatoTaskId,
+            fillPrice: fillPrice,
+            fee: fee
+        });
+    }
+
+    function emitGelatoTaskCanceled(
+        uint256 taskId,
+        bytes32 gelatoTaskId,
+        bytes32 reason
+    ) external override onlyAccounts {
+        emit GelatoTaskCanceled({
+            account: msg.sender,
+            taskId: taskId,
+            gelatoTaskId: gelatoTaskId,
+            reason: reason
         });
     }
 }

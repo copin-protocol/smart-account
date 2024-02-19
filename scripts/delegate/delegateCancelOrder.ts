@@ -13,11 +13,11 @@ async function main() {
     accountAbi,
     wallet1
   );
-  const marketETH = (network.config as CopinNetworkConfig).SNX_MARKET_ETH;
+  const market = (network.config as CopinNetworkConfig).SNX_MARKET_LINK;
 
   const abi = ethers.utils.defaultAbiCoder;
 
-  const tx = await account.execute([2], [abi.encode(["address"], [marketETH])]);
+  const tx = await account.execute([2], [abi.encode(["address"], [market])]);
   console.log("tx", tx);
 }
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.18;
 
-library GelatoBytes {
+library Bytes {
     function calldataSliceSelector(
         bytes calldata _bytes
     ) internal pure returns (bytes4 selector) {

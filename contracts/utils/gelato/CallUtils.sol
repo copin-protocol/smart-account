@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.18;
 
-import {GelatoBytes} from "./GelatoBytes.sol";
+import {Bytes} from "./Bytes.sol";
 
-library GelatoCallUtils {
-    using GelatoBytes for bytes;
+library CallUtils {
+    using Bytes for bytes;
 
     function revertingContractCall(
         address _contract,

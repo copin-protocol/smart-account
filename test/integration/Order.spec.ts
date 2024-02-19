@@ -88,6 +88,7 @@ describe("Events", () => {
         await placeOrder({
           account,
           market: marketETH,
+          markets: [marketETH],
         });
       expect(commands).to.deep.equal([
         AccountCommand.PERP_MODIFY_MARGIN,
@@ -119,6 +120,7 @@ describe("Events", () => {
         await placeOrder({
           account,
           market: marketETH,
+          markets: [marketETH],
           isLong: false,
         });
       expect(commands).to.deep.equal([
@@ -140,11 +142,13 @@ describe("Events", () => {
       const { commands: prevCommands, inputs: prevInputs } = await placeOrder({
         account,
         market: marketETH,
+        markets: [marketETH],
       });
       await account.connect(delegateWallet).execute(prevCommands, prevInputs);
       const { commands, inputs, price } = await placeOrder({
         account,
         market: marketETH,
+        markets: [marketETH],
       });
       expect(commands).to.deep.equal([
         AccountCommand.PERP_CANCEL_ORDER,
@@ -174,6 +178,7 @@ describe("Events", () => {
       const { commands, inputs, price } = await placeOrder({
         account,
         market: marketETH,
+        markets: [marketETH],
       });
       expect(commands).to.deep.equal([
         AccountCommand.PERP_WITHDRAW_ALL_MARGIN,
@@ -193,12 +198,14 @@ describe("Events", () => {
       const { commands: prevCommands, inputs: prevInputs } = await placeOrder({
         account,
         market: marketETH,
+        markets: [marketETH],
       });
       await account.connect(delegateWallet).execute(prevCommands, prevInputs);
       await marketETH.mockExecute(account.address);
       const { commands, inputs, price } = await placeOrder({
         account,
         market: marketETH,
+        markets: [marketETH],
         amount: ethers.utils.parseEther("25"),
       });
       expect(commands).to.deep.equal([
@@ -218,12 +225,14 @@ describe("Events", () => {
       const { commands: prevCommands, inputs: prevInputs } = await placeOrder({
         account,
         market: marketETH,
+        markets: [marketETH],
       });
       await account.connect(delegateWallet).execute(prevCommands, prevInputs);
       await marketETH.mockExecute(account.address);
       const { commands, inputs, price } = await placeOrder({
         account,
         market: marketETH,
+        markets: [marketETH],
         amount: ethers.utils.parseEther("25"),
         increase: false,
       });
@@ -243,6 +252,7 @@ describe("Events", () => {
         await placeOrder({
           account,
           market: marketETH,
+          markets: [marketETH],
         });
       await account
         .connect(delegateWallet)
@@ -272,6 +282,7 @@ describe("Events", () => {
         await placeOrder({
           account,
           market: marketETH,
+          markets: [marketETH],
           isLong: false,
         });
       await account
@@ -300,6 +311,7 @@ describe("Events", () => {
         await placeOrder({
           account,
           market: marketETH,
+          markets: [marketETH],
         });
       await account
         .connect(delegateWallet)
@@ -331,6 +343,7 @@ describe("Events", () => {
         await placeOrder({
           account,
           market: marketETH,
+          markets: [marketETH],
         });
       await account
         .connect(delegateWallet)
@@ -368,6 +381,7 @@ describe("Events", () => {
         await placeOrder({
           account,
           market: marketETH,
+          markets: [marketETH],
         });
       await account
         .connect(delegateWallet)
@@ -387,6 +401,7 @@ describe("Events", () => {
         await placeOrder({
           account,
           market: marketETH,
+          markets: [marketETH],
         });
       await account
         .connect(delegateWallet)
@@ -396,6 +411,7 @@ describe("Events", () => {
         await placeOrder({
           account,
           market: marketETH,
+          markets: [marketETH],
         });
       await account
         .connect(delegateWallet)
@@ -414,6 +430,7 @@ describe("Events", () => {
         await placeOrder({
           account,
           market: marketETH,
+          markets: [marketETH],
         });
       await account
         .connect(delegateWallet)
